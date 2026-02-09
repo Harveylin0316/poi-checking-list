@@ -3,12 +3,18 @@ import pandas as pd
 from check_restaurants import OpenRiceChecker
 import time
 import os
+import sys
 
+# 設置Streamlit配置（確保在Railway環境中正常運行）
 st.set_page_config(
     page_title="OpenRice 餐廳要素檢查",
     page_icon="🍽️",
     layout="wide"
 )
+
+# 確保輸出被刷新（Railway環境需要）
+sys.stdout.flush()
+sys.stderr.flush()
 
 st.title("🍽️ OpenRice 餐廳要素檢查程式")
 st.markdown("---")
