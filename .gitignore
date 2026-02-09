@@ -34,9 +34,9 @@ restaurant_check_report.xlsx
 *.html
 *.log
 
-# 测试文件
+# 测试文件（排除测试文件，但保留核心文件 check_restaurants.py）
 test_*.py
-check_*.py
+check_*_*.py
 compare_*.py
 debug_*.py
 verify_*.py
