@@ -1,8 +1,12 @@
 # 使用Python官方镜像
 FROM python:3.9-slim
 
-# 安裝系統依賴（包括Chrome和ChromeDriver）
-RUN apt-get update && apt-get install -y \
+# 設置環境變量以加速構建
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# 安裝系統依賴和Google Chrome（合併RUN命令以減少層數和構建時間）
+RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     gnupg \
     unzip \
@@ -42,14 +46,11 @@ RUN apt-get update && apt-get install -y \
     libxtst6 \
     lsb-release \
     xdg-utils \
-    && rm -rf /var/lib/apt/lists/*
-
-# 安裝Google Chrome（使用新方法，不依賴apt-key）
-RUN wget -q -O /tmp/google-chrome-stable.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-    && apt-get update \
-    && apt-get install -y /tmp/google-chrome-stable.deb \
+    && wget -q --timeout=30 --tries=3 -O /tmp/google-chrome-stable.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && apt-get install -y --no-install-recommends /tmp/google-chrome-stable.deb \
     && rm /tmp/google-chrome-stable.deb \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # 安裝ChromeDriver（使用webdriver-manager自動管理，更簡單可靠）
 # ChromeDriver會在運行時自動下載匹配的版本
