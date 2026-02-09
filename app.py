@@ -50,13 +50,33 @@ with st.sidebar:
         if st.button("測試URL", key="test_url"):
             if test_url:
                 try:
-                    checker = OpenRiceChecker(st.session_state.temp_file if st.session_state.temp_file else "temp_test.xlsx", use_selenium=True)
-                    result = checker.check_restaurant(test_url, "測試餐廳")
+                    # 創建臨時Excel文件（如果不存在）
+                    temp_file = st.session_state.temp_file if 'temp_file' in st.session_state and st.session_state.temp_file else "temp_test.xlsx"
+                    
+                    # 顯示初始化信息
+                    with st.spinner("正在初始化Selenium..."):
+                        checker = OpenRiceChecker(temp_file, use_selenium=True)
+                    
+                    # 顯示檢查器狀態
+                    if checker.use_selenium:
+                        st.success("✓ Selenium已啟用")
+                    else:
+                        st.warning("⚠️ Selenium未啟用，將使用requests（可能無法處理JavaScript內容）")
+                    
+                    # 執行檢查
+                    with st.spinner("正在檢查餐廳..."):
+                        result = checker.check_restaurant(test_url, "測試餐廳")
+                    
                     st.json(result)
+                    
+                    # 清理資源
+                    if checker.driver:
+                        checker.driver.quit()
                 except Exception as e:
                     st.error(f"測試失敗: {e}")
                     import traceback
-                    st.code(traceback.format_exc())
+                    with st.expander("查看錯誤詳情"):
+                        st.code(traceback.format_exc())
 
 # 檔案上傳
 st.header("📁 步驟1: 上傳Excel檔案")
