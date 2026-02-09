@@ -195,23 +195,23 @@ class OpenRiceChecker:
         else:
             self.driver = None
         
-        if not self.use_selenium:
-            self.session = requests.Session()
-            # 啟用連接池和keep-alive，提高性能
-            adapter = requests.adapters.HTTPAdapter(
-                pool_connections=10,  # 連接池大小
-                pool_maxsize=20,      # 最大連接數
-                max_retries=2,        # 重試次數
-                pool_block=False      # 非阻塞
-            )
-            self.session.mount('http://', adapter)
-            self.session.mount('https://', adapter)
-            self.session.headers.update({
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
-                'Connection': 'keep-alive'  # 保持連接
-            })
+        # 無論是否使用Selenium，都需要初始化session（用於resolve_short_url等操作）
+        self.session = requests.Session()
+        # 啟用連接池和keep-alive，提高性能
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=10,  # 連接池大小
+            pool_maxsize=20,      # 最大連接數
+            max_retries=2,        # 重試次數
+            pool_block=False      # 非阻塞
+        )
+        self.session.mount('http://', adapter)
+        self.session.mount('https://', adapter)
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
+            'Connection': 'keep-alive'  # 保持連接
+        })
     
     def __del__(self):
         """清理資源"""
