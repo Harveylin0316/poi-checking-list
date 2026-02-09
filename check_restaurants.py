@@ -54,49 +54,96 @@ class OpenRiceChecker:
             try:
                 # 檢查是否在Railway/Docker環境中
                 import os
+                import sys
+                
+                # 確保輸出立即刷新（Railway環境需要）
+                sys.stdout.flush()
+                sys.stderr.flush()
+                
                 chrome_binary = os.environ.get('CHROMIUM_PATH', '/usr/bin/google-chrome')
                 chromedriver_path = os.environ.get('CHROMEDRIVER_PATH', None)
+                
+                print("=" * 50)
+                print("正在初始化Selenium...")
+                print(f"CHROMIUM_PATH環境變量: {chrome_binary}")
+                print(f"CHROMEDRIVER_PATH環境變量: {chromedriver_path}")
+                print(f"Chrome路徑是否存在: {os.path.exists(chrome_binary) if chrome_binary else False}")
+                sys.stdout.flush()
                 
                 # 檢查Chrome是否存在
                 if os.path.exists(chrome_binary):
                     chrome_options.binary_location = chrome_binary
-                    print(f"  找到Chrome: {chrome_binary}")
+                    print(f"✓ 找到Chrome: {chrome_binary}")
+                    
+                    # 檢查Chrome版本
+                    try:
+                        import subprocess
+                        chrome_version_output = subprocess.check_output([chrome_binary, '--version'], stderr=subprocess.STDOUT, timeout=5).decode('utf-8')
+                        print(f"Chrome版本: {chrome_version_output.strip()}")
+                    except Exception as e:
+                        print(f"無法獲取Chrome版本: {e}")
+                    
+                    sys.stdout.flush()
                     
                     # 在Railway/Docker環境中，使用webdriver-manager自動下載匹配的ChromeDriver
                     # 這比手動指定路徑更可靠
                     try:
+                        print("正在使用ChromeDriverManager下載ChromeDriver...")
+                        sys.stdout.flush()
+                        
                         # 設置ChromeDriverManager的緩存目錄（避免權限問題）
                         import tempfile
                         cache_dir = os.path.join(tempfile.gettempdir(), 'chromedriver_cache')
                         os.makedirs(cache_dir, exist_ok=True)
+                        print(f"ChromeDriver緩存目錄: {cache_dir}")
+                        sys.stdout.flush()
                         
                         # 使用ChromeDriverManager自動下載匹配的ChromeDriver
-                        service = Service(ChromeDriverManager(cache_valid_range=365).install())
-                        print(f"  使用自動下載的ChromeDriver（匹配Chrome版本）")
+                        driver_path = ChromeDriverManager(cache_valid_range=365).install()
+                        print(f"✓ ChromeDriver已下載: {driver_path}")
+                        service = Service(driver_path)
+                        sys.stdout.flush()
                     except Exception as e:
-                        print(f"  警告: ChromeDriverManager失敗: {e}")
+                        print(f"✗ ChromeDriverManager失敗: {e}")
+                        import traceback
+                        print(traceback.format_exc())
+                        sys.stdout.flush()
+                        
                         # 如果自動下載失敗，嘗試使用環境變量指定的路徑
                         if chromedriver_path and os.path.exists(chromedriver_path):
+                            print(f"嘗試使用環境變量指定的ChromeDriver: {chromedriver_path}")
                             service = Service(chromedriver_path)
-                            print(f"  使用環境變量指定的ChromeDriver: {chromedriver_path}")
+                            sys.stdout.flush()
                         else:
-                            raise Exception("無法獲取ChromeDriver")
+                            raise Exception(f"無法獲取ChromeDriver: {e}")
                 else:
                     # 本地環境，嘗試自動下載
-                    print(f"  本地環境，使用自動下載的Chrome和ChromeDriver")
+                    print(f"本地環境，使用自動下載的Chrome和ChromeDriver")
+                    sys.stdout.flush()
                     service = Service(ChromeDriverManager().install())
                 
                 # 創建WebDriver實例
+                print("正在創建Chrome WebDriver實例...")
+                sys.stdout.flush()
                 self.driver = webdriver.Chrome(service=service, options=chrome_options)
                 
                 # 測試WebDriver是否正常工作
                 self.driver.set_page_load_timeout(30)
-                print("✓ 已啟用Selenium（可處理JavaScript動態內容）")
+                print("=" * 50)
+                print("✓ Selenium初始化成功！已啟用（可處理JavaScript動態內容）")
+                print("=" * 50)
+                sys.stdout.flush()
             except Exception as e:
-                print(f"警告: Selenium初始化失敗: {e}")
+                print("=" * 50)
+                print(f"✗ Selenium初始化失敗: {e}")
+                print("=" * 50)
                 import traceback
+                print("完整錯誤堆棧:")
                 print(traceback.format_exc())
+                print("=" * 50)
                 print("將使用requests（可能無法處理JavaScript動態內容）")
+                print("=" * 50)
+                sys.stdout.flush()
                 self.use_selenium = False
                 self.driver = None
         else:
