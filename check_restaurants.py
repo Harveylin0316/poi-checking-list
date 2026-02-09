@@ -52,23 +52,33 @@ class OpenRiceChecker:
             chrome_options.add_argument('user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
             
             try:
-                # 檢查是否在Railway環境中（有CHROMIUM_PATH環境變量）
+                # 檢查是否在Railway/Docker環境中
                 import os
-                chromium_path = os.environ.get('CHROMIUM_PATH', '/usr/bin/chromium')
-                chromedriver_path = os.environ.get('CHROMEDRIVER_PATH', '/usr/bin/chromedriver')
+                chrome_binary = os.environ.get('CHROMIUM_PATH', '/usr/bin/google-chrome')
+                chromedriver_path = os.environ.get('CHROMEDRIVER_PATH', '/usr/local/bin/chromedriver')
                 
-                # 如果Chrome路徑存在，使用它
-                if os.path.exists(chromium_path):
-                    chrome_options.binary_location = chromium_path
-                    service = Service(chromedriver_path)
+                # 如果Chrome路徑存在，使用它（Railway/Docker環境）
+                if os.path.exists(chrome_binary):
+                    chrome_options.binary_location = chrome_binary
+                    if os.path.exists(chromedriver_path):
+                        service = Service(chromedriver_path)
+                        print(f"  使用Railway環境的Chrome: {chrome_binary}")
+                    else:
+                        # 如果chromedriver不存在，嘗試自動下載
+                        service = Service(ChromeDriverManager().install())
+                        print(f"  使用自動下載的ChromeDriver")
                 else:
-                    # 否則嘗試自動下載
+                    # 本地環境，嘗試自動下載
                     service = Service(ChromeDriverManager().install())
+                    print(f"  使用自動下載的Chrome和ChromeDriver")
                 
                 self.driver = webdriver.Chrome(service=service, options=chrome_options)
                 print("✓ 已啟用Selenium（可處理JavaScript動態內容）")
             except Exception as e:
-                print(f"警告: Selenium初始化失敗: {e}，將使用requests")
+                print(f"警告: Selenium初始化失敗: {e}")
+                import traceback
+                print(traceback.format_exc())
+                print("將使用requests（可能無法處理JavaScript動態內容）")
                 self.use_selenium = False
                 self.driver = None
         else:

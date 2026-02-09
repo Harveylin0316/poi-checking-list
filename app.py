@@ -44,7 +44,7 @@ with st.sidebar:
         if st.button("測試URL", key="test_url"):
             if test_url:
                 try:
-                    checker = OpenRiceChecker(st.session_state.temp_file if st.session_state.temp_file else "temp_test.xlsx", use_selenium=False)
+                    checker = OpenRiceChecker(st.session_state.temp_file if st.session_state.temp_file else "temp_test.xlsx", use_selenium=True)
                     result = checker.check_restaurant(test_url, "測試餐廳")
                     st.json(result)
                 except Exception as e:
@@ -157,8 +157,9 @@ if uploaded_file is not None:
             st.session_state.df_restaurants = df
             
             # 初始化checker（只創建一次，復用）
+            # 啟用Selenium來處理JavaScript動態內容（Railway環境需要）
             if not st.session_state.checker_initialized:
-                st.session_state.checker = OpenRiceChecker(temp_file, use_selenium=False)
+                st.session_state.checker = OpenRiceChecker(temp_file, use_selenium=True)
                 st.session_state.checker_initialized = True
             
             st.rerun()
