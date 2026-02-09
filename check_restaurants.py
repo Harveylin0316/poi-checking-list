@@ -5,6 +5,8 @@ import time
 from urllib.parse import urljoin
 import json
 from datetime import datetime
+import sys
+import os
 
 # 嘗試匯入brotli（可選，用於解壓Brotli壓縮的回應）
 try:
@@ -214,7 +216,7 @@ class OpenRiceChecker:
     
     def __del__(self):
         """清理資源"""
-        if self.driver:
+        if hasattr(self, 'driver') and self.driver:
             try:
                 self.driver.quit()
             except:
