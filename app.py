@@ -54,14 +54,18 @@ with st.sidebar:
                     temp_file = st.session_state.temp_file if 'temp_file' in st.session_state and st.session_state.temp_file else "temp_test.xlsx"
                     
                     # 顯示初始化信息
-                    with st.spinner("正在初始化Selenium..."):
-                        checker = OpenRiceChecker(temp_file, use_selenium=True)
+                    init_status = st.empty()
+                    init_status.info("正在初始化Selenium...")
+                    
+                    # 創建檢查器（會輸出詳細的初始化日誌到Railway日誌）
+                    checker = OpenRiceChecker(temp_file, use_selenium=True)
                     
                     # 顯示檢查器狀態
                     if checker.use_selenium:
-                        st.success("✓ Selenium已啟用")
+                        init_status.success("✓ Selenium已啟用")
                     else:
-                        st.warning("⚠️ Selenium未啟用，將使用requests（可能無法處理JavaScript內容）")
+                        init_status.warning("⚠️ Selenium未啟用，將使用requests（可能無法處理JavaScript內容）")
+                        st.info("💡 提示：請查看Railway部署日誌以了解Selenium初始化失敗的原因")
                     
                     # 執行檢查
                     with st.spinner("正在檢查餐廳..."):
@@ -77,6 +81,7 @@ with st.sidebar:
                     import traceback
                     with st.expander("查看錯誤詳情"):
                         st.code(traceback.format_exc())
+                    st.info("💡 請查看Railway部署日誌以獲取更詳細的錯誤信息")
 
 # 檔案上傳
 st.header("📁 步驟1: 上傳Excel檔案")
