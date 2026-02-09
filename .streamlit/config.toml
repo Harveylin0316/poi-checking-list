@@ -1,6 +1,8 @@
 [server]
-port = 8501
+# port 會從環境變量 PORT 讀取（Railway自動設置）
 address = "0.0.0.0"
+enableCORS = false
+enableXsrfProtection = false
 
 [theme]
 primaryColor = "#FF4B4B"

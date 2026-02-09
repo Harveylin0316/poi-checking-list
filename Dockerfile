@@ -70,8 +70,8 @@ COPY . .
 ENV CHROMIUM_PATH=/usr/bin/google-chrome
 ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
 
-# 暴露端口
-EXPOSE 8501
+# 暴露端口（Railway會自動設置PORT環境變量）
+EXPOSE 8080
 
-# 啟動Streamlit應用
-CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# 啟動Streamlit應用（使用Railway的PORT環境變量）
+CMD streamlit run app.py --server.port=${PORT:-8501} --server.address=0.0.0.0
