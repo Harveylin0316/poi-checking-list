@@ -338,13 +338,19 @@ class OpenRiceChecker:
                     sys.stdout.flush()
                     if text:
                         # 檢查是否主要是英文字元（至少50%是英文字母）
-                    english_chars = sum(1 for c in text if c.isalpha() and ord(c) < 128)
-                    chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
-                    total_chars = len([c for c in text if c.isalnum()])
-                    
-                    # 必須主要是英文（英文字元數 > 中文字元數，且至少3個英文字元）
-                    if total_chars > 0 and english_chars >= 3 and english_chars > chinese_chars:
-                        return True, text
+                        english_chars = sum(1 for c in text if c.isalpha() and ord(c) < 128)
+                        chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+                        total_chars = len([c for c in text if c.isalnum()])
+                        
+                        # 必須主要是英文（英文字元數 > 中文字元數，且至少3個英文字元）
+                        if total_chars > 0 and english_chars >= 3 and english_chars > chinese_chars:
+                            print(f"  ✓ 找到英文名稱: {text}")
+                            sys.stdout.flush()
+                            return True, text
+            except Exception as e:
+                print(f"    選擇器 {selector} 檢查失敗: {e}")
+                sys.stdout.flush()
+                continue
         
         # 檢查h1標籤中是否同時包含中英文
         h1 = soup.select_one('h1')
