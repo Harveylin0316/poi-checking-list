@@ -786,6 +786,47 @@ class OpenRiceChecker:
                 print(f"  使用Selenium獲取頁面: {url}")
                 sys.stdout.flush()
                 
+                # 檢查driver是否仍然有效
+                try:
+                    self.driver.current_url
+                except Exception as e:
+                    print(f"  WebDriver已失效: {e}，重新初始化...")
+                    sys.stdout.flush()
+                    # 嘗試重新初始化driver
+                    try:
+                        from selenium import webdriver
+                        from selenium.webdriver.chrome.options import Options
+                        from selenium.webdriver.chrome.service import Service
+                        from webdriver_manager.chrome import ChromeDriverManager
+                        import os
+                        
+                        chrome_options = Options()
+                        chrome_options.add_argument('--headless=new')
+                        chrome_options.add_argument('--no-sandbox')
+                        chrome_options.add_argument('--disable-dev-shm-usage')
+                        chrome_options.add_argument('--disable-gpu')
+                        chrome_options.add_argument('--disable-setuid-sandbox')
+                        chrome_options.add_argument('--disable-web-security')
+                        chrome_options.add_argument('--window-size=1920,1080')
+                        chrome_options.add_argument('user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+                        
+                        chrome_binary = os.environ.get('CHROMIUM_PATH', '/usr/bin/google-chrome')
+                        if os.path.exists(chrome_binary):
+                            chrome_options.binary_location = chrome_binary
+                        
+                        service = Service(ChromeDriverManager().install())
+                        self.driver = webdriver.Chrome(service=service, options=chrome_options)
+                        self.driver.set_page_load_timeout(30)
+                        print("  WebDriver重新初始化成功")
+                        sys.stdout.flush()
+                    except Exception as init_error:
+                        print(f"  WebDriver重新初始化失敗: {init_error}")
+                        sys.stdout.flush()
+                        raise Exception("WebDriver失效且無法重新初始化")
+                
+                # 訪問頁面
+                print("  正在訪問頁面...")
+                sys.stdout.flush()
                 self.driver.get(url)
                 
                 # 等待頁面載入
@@ -797,26 +838,26 @@ class OpenRiceChecker:
                 try:
                     print("  等待body元素載入...")
                     sys.stdout.flush()
-                    WebDriverWait(self.driver, 15).until(
+                    WebDriverWait(self.driver, 20).until(
                         EC.presence_of_element_located((By.TAG_NAME, "body"))
                     )
                     # 額外等待，確保動態內容載入
                     print("  body元素已載入，等待動態內容...")
                     sys.stdout.flush()
-                    time.sleep(3)  # 增加等待時間，確保JavaScript渲染完成
+                    time.sleep(5)  # 增加等待時間，確保JavaScript渲染完成
                 except Exception as e:
                     print(f"  警告: 等待body元素超時: {e}，繼續執行")
                     sys.stdout.flush()
-                    time.sleep(3)  # 即使超時也等待一下
+                    time.sleep(5)  # 即使超時也等待一下
                 
                 # 滾動頁面以觸發懶加載
                 try:
                     print("  滾動頁面以觸發懶加載...")
                     sys.stdout.flush()
                     self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                    time.sleep(2)
+                    time.sleep(3)
                     self.driver.execute_script("window.scrollTo(0, 0);")
-                    time.sleep(1)
+                    time.sleep(2)
                 except Exception as e:
                     print(f"  滾動頁面失敗: {e}")
                     sys.stdout.flush()
@@ -839,15 +880,20 @@ class OpenRiceChecker:
                     print(f"  ⚠️ 頁面可能缺少餐廳名稱元素")
                     sys.stdout.flush()
                 
+                # 檢查頁面內容長度
                 if page_length < 1000:
                     print(f"  警告: 頁面內容可能不完整（僅{page_length}字元）")
+                    print(f"  頁面前500字元: {html[:500]}")
                     sys.stdout.flush()
+                    # 如果內容太短，拋出異常以回退到requests
+                    raise Exception(f"Selenium獲取的頁面內容過短（{page_length}字元），可能未正確載入")
                 
                 return BeautifulSoup(html, 'html.parser')
             except Exception as e:
                 print(f"  Selenium獲取頁面失敗: {e}，嘗試使用requests")
                 import traceback
                 print(traceback.format_exc())
+                sys.stdout.flush()
                 # 如果Selenium失敗，回退到requests
                 pass
         
