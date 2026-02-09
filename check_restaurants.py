@@ -99,7 +99,8 @@ class OpenRiceChecker:
                         sys.stdout.flush()
                         
                         # 使用ChromeDriverManager自動下載匹配的ChromeDriver
-                        driver_path = ChromeDriverManager(cache_valid_range=365).install()
+                        # 注意：不使用cache_valid_range參數（某些版本不支持）
+                        driver_path = ChromeDriverManager().install()
                         print(f"✓ ChromeDriver已下載: {driver_path}")
                         service = Service(driver_path)
                         sys.stdout.flush()
