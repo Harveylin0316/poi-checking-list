@@ -515,6 +515,38 @@ class OpenRiceChecker:
         
         return False
     
+    def resolve_short_url(self, url):
+        """解析縮短URL，獲取實際URL
+        例如: https://s.openrice.com/cHRSmW2pOW700 -> https://tw.openrice.com/zh/taichung/r-...
+        """
+        # 檢查是否為縮短URL
+        if 's.openrice.com' in url:
+            try:
+                # 先嘗試HEAD請求（更輕量）
+                try:
+                    response = self.session.head(url, timeout=15, allow_redirects=True)
+                    actual_url = response.url
+                except:
+                    # 如果HEAD失敗，使用GET請求
+                    response = self.session.get(url, timeout=15, allow_redirects=True, stream=True)
+                    actual_url = response.url
+                    response.close()  # 關閉連接，不讀取內容
+                
+                # 移除查詢參數（如 ?_sUrl=...）
+                if '?' in actual_url:
+                    actual_url = actual_url.split('?')[0]
+                
+                # 確保URL以/結尾（如果需要的話）
+                if actual_url != url:
+                    print(f"  縮短URL已解析: {url} -> {actual_url}")
+                
+                return actual_url
+            except Exception as e:
+                print(f"  解析縮短URL失敗: {e}，使用原始URL")
+                return url
+        
+        return url
+    
     def get_page_soup(self, url):
         """獲取頁面的BeautifulSoup物件"""
         if self.use_selenium and self.driver:
@@ -570,15 +602,20 @@ class OpenRiceChecker:
         print(f"正在檢查: {restaurant_name} - {url}")
         
         try:
-            soup = self.get_page_soup(url)
+            # 解析縮短URL，獲取實際URL
+            actual_url = self.resolve_short_url(url)
             
+            # 使用實際URL獲取頁面
+            soup = self.get_page_soup(actual_url)
+            
+            # 使用實際URL構建子頁面URL
             checks = {
                 '中文名稱': self.check_chinese_name(soup),
                 '英文名稱': self.check_english_name(soup),
-                '門面照片': self.check_facade_photo(soup, base_url=url),
-                '菜單': self.check_menu(soup, base_url=url),
-                '餐點照片': self.check_food_photos(soup, base_url=url),
-                '相關影片': self.check_videos(soup, base_url=url)
+                '門面照片': self.check_facade_photo(soup, base_url=actual_url),
+                '菜單': self.check_menu(soup, base_url=actual_url),
+                '餐點照片': self.check_food_photos(soup, base_url=actual_url),
+                '相關影片': self.check_videos(soup, base_url=actual_url)
             }
             
             # 統計通過和失敗的檢查項目
