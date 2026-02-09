@@ -267,15 +267,47 @@ class OpenRiceChecker:
             '[class*="中文"]',
             '[data-name]',
             '.poi-name',
-            '[class*="poi-name"]'
+            '[class*="poi-name"]',
+            '[class*="poi"] h1',  # 更廣泛的選擇器
+            'h1.poi-name',  # 組合選擇器
+            '[class*="title"] h1',  # 標題區域的h1
         ]
+        
+        print("  檢查中文名稱...")
+        sys.stdout.flush()
+        
         for selector in selectors:
-            element = soup.select_one(selector)
-            if element:
-                text = element.get_text(strip=True)
-                # 檢查是否包含中文字元
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    text = element.get_text(strip=True)
+                    print(f"    找到元素 ({selector}): {text[:50]}...")
+                    sys.stdout.flush()
+                    # 檢查是否包含中文字元
+                    if text and any('\u4e00' <= char <= '\u9fff' for char in text):
+                        print(f"  ✓ 找到中文名稱: {text}")
+                        sys.stdout.flush()
+                        return True, text
+            except Exception as e:
+                print(f"    選擇器 {selector} 檢查失敗: {e}")
+                sys.stdout.flush()
+                continue
+        
+        # 如果所有選擇器都失敗，嘗試查找所有h1標籤
+        try:
+            all_h1 = soup.find_all('h1')
+            for h1 in all_h1:
+                text = h1.get_text(strip=True)
                 if text and any('\u4e00' <= char <= '\u9fff' for char in text):
+                    print(f"  ✓ 在h1標籤中找到中文名稱: {text}")
+                    sys.stdout.flush()
                     return True, text
+        except Exception as e:
+            print(f"  查找h1標籤失敗: {e}")
+            sys.stdout.flush()
+        
+        print("  ✗ 未找到中文名稱")
+        sys.stdout.flush()
         return False, None
     
     def check_english_name(self, soup):
@@ -289,14 +321,23 @@ class OpenRiceChecker:
             '[class*="english-name"]',
             'h2',
             '.restaurant-name-en',
-            '[class*="name-en"]'
+            '[class*="name-en"]',
+            '[class*="poi"] h2',  # 更廣泛的選擇器
+            'h2.poi-name-en',  # 組合選擇器
         ]
+        
+        print("  檢查英文名稱...")
+        sys.stdout.flush()
+        
         for selector in selectors:
-            element = soup.select_one(selector)
-            if element:
-                text = element.get_text(strip=True)
-                if text:
-                    # 檢查是否主要是英文字元（至少50%是英文字母）
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    text = element.get_text(strip=True)
+                    print(f"    找到元素 ({selector}): {text[:50]}...")
+                    sys.stdout.flush()
+                    if text:
+                        # 檢查是否主要是英文字元（至少50%是英文字母）
                     english_chars = sum(1 for c in text if c.isalpha() and ord(c) < 128)
                     chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
                     total_chars = len([c for c in text if c.isalnum()])
@@ -698,26 +739,64 @@ class OpenRiceChecker:
         if self.use_selenium and self.driver:
             try:
                 print(f"  使用Selenium獲取頁面: {url}")
+                sys.stdout.flush()
+                
                 self.driver.get(url)
+                
                 # 等待頁面載入
+                print("  等待頁面載入...")
+                sys.stdout.flush()
                 time.sleep(5)  # 增加等待時間，確保JavaScript執行完成
+                
                 # 嘗試等待特定元素載入
                 try:
+                    print("  等待body元素載入...")
+                    sys.stdout.flush()
                     WebDriverWait(self.driver, 15).until(
                         EC.presence_of_element_located((By.TAG_NAME, "body"))
                     )
                     # 額外等待，確保動態內容載入
-                    time.sleep(2)
-                except:
-                    print(f"  警告: 等待body元素超時，繼續執行")
+                    print("  body元素已載入，等待動態內容...")
+                    sys.stdout.flush()
+                    time.sleep(3)  # 增加等待時間，確保JavaScript渲染完成
+                except Exception as e:
+                    print(f"  警告: 等待body元素超時: {e}，繼續執行")
+                    sys.stdout.flush()
                     time.sleep(3)  # 即使超時也等待一下
+                
+                # 滾動頁面以觸發懶加載
+                try:
+                    print("  滾動頁面以觸發懶加載...")
+                    sys.stdout.flush()
+                    self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                    time.sleep(2)
+                    self.driver.execute_script("window.scrollTo(0, 0);")
+                    time.sleep(1)
+                except Exception as e:
+                    print(f"  滾動頁面失敗: {e}")
+                    sys.stdout.flush()
                 
                 html = self.driver.page_source
                 page_length = len(html)
                 print(f"  Selenium獲取頁面成功，內容長度: {page_length} 字元")
+                sys.stdout.flush()
+                
+                # 檢查頁面是否包含OpenRice的關鍵字
+                if 'openrice' not in html.lower() and 'openrice' not in url.lower():
+                    print(f"  警告: 頁面可能不是OpenRice頁面")
+                    sys.stdout.flush()
+                
+                # 檢查是否包含餐廳名稱相關的元素
+                if 'poi-name' in html or 'restaurant-name' in html or 'pdhs-en-section' in html:
+                    print(f"  ✓ 頁面包含餐廳名稱相關元素")
+                    sys.stdout.flush()
+                else:
+                    print(f"  ⚠️ 頁面可能缺少餐廳名稱元素")
+                    sys.stdout.flush()
                 
                 if page_length < 1000:
-                    print(f"  警告: 頁面內容可能不完整")
+                    print(f"  警告: 頁面內容可能不完整（僅{page_length}字元）")
+                    sys.stdout.flush()
                 
                 return BeautifulSoup(html, 'html.parser')
             except Exception as e:
