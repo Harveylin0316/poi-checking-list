@@ -37,6 +37,20 @@ with st.sidebar:
     
     st.markdown("---")
     st.markdown("**注意**: 檢查過程可能需要一些時間，請耐心等待")
+    
+    # 測試單個URL功能（用於調試）
+    with st.expander("🔧 測試單個URL（調試用）"):
+        test_url = st.text_input("輸入餐廳URL進行測試", placeholder="https://s.openrice.com/...")
+        if st.button("測試URL", key="test_url"):
+            if test_url:
+                try:
+                    checker = OpenRiceChecker(st.session_state.temp_file if st.session_state.temp_file else "temp_test.xlsx", use_selenium=False)
+                    result = checker.check_restaurant(test_url, "測試餐廳")
+                    st.json(result)
+                except Exception as e:
+                    st.error(f"測試失敗: {e}")
+                    import traceback
+                    st.code(traceback.format_exc())
 
 # 檔案上傳
 st.header("📁 步驟1: 上傳Excel檔案")
