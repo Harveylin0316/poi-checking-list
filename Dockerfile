@@ -73,5 +73,7 @@ ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
 # 暴露端口（Railway會自動設置PORT環境變量）
 EXPOSE 8080
 
-# 啟動Streamlit應用（使用Railway的PORT環境變量）
-CMD streamlit run app.py --server.port=${PORT:-8501} --server.address=0.0.0.0
+# 啟動Streamlit應用
+# 注意：Railway的startCommand會覆蓋這個CMD
+# 如果Railway沒有設置startCommand，則使用這個默認命令
+CMD ["sh", "-c", "streamlit run app.py --server.port=${PORT:-8501} --server.address=0.0.0.0 --server.headless=true"]
