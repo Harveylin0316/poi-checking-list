@@ -385,7 +385,12 @@ class OpenRiceChecker:
             else:
                 category_url = base_url.rstrip('/') + '/photos/' + category_path
             
-            soup = self.get_page_soup(category_url)
+            # 優化：對於非videos分類，使用更快的檢查方式
+            if category_path != 'videos':
+                # 對於照片分類，可以減少等待時間
+                soup = self.get_page_soup(category_url, fast_mode=True)
+            else:
+                soup = self.get_page_soup(category_url, fast_mode=False)
             
             # 對於videos分類，檢查是否有實際的影片
             if category_path == 'videos':
