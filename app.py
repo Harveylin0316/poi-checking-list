@@ -188,8 +188,11 @@ if uploaded_file is not None:
             try:
                 # 使用已創建的checker（復用，避免重複創建）
                 # 如果checker未初始化，先初始化
+                # 在Railway環境中嘗試使用Selenium（如果可用）
                 if st.session_state.checker is None:
-                    st.session_state.checker = OpenRiceChecker(st.session_state.temp_file, use_selenium=False)
+                    # 嘗試使用Selenium（Railway環境可能需要）
+                    use_selenium = True  # 嘗試啟用Selenium
+                    st.session_state.checker = OpenRiceChecker(st.session_state.temp_file, use_selenium=use_selenium)
                     st.session_state.checker_initialized = True
                 
                 checker = st.session_state.checker

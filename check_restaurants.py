@@ -45,11 +45,26 @@ class OpenRiceChecker:
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--disable-dev-shm-usage')
             chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--disable-software-rasterizer')
+            chrome_options.add_argument('--disable-extensions')
+            chrome_options.add_argument('--single-process')  # Railway環境需要
             chrome_options.add_argument('--window-size=1920,1080')
             chrome_options.add_argument('user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
             
             try:
-                service = Service(ChromeDriverManager().install())
+                # 檢查是否在Railway環境中（有CHROMIUM_PATH環境變量）
+                import os
+                chromium_path = os.environ.get('CHROMIUM_PATH', '/usr/bin/chromium')
+                chromedriver_path = os.environ.get('CHROMEDRIVER_PATH', '/usr/bin/chromedriver')
+                
+                # 如果Chrome路徑存在，使用它
+                if os.path.exists(chromium_path):
+                    chrome_options.binary_location = chromium_path
+                    service = Service(chromedriver_path)
+                else:
+                    # 否則嘗試自動下載
+                    service = Service(ChromeDriverManager().install())
+                
                 self.driver = webdriver.Chrome(service=service, options=chrome_options)
                 print("✓ 已啟用Selenium（可處理JavaScript動態內容）")
             except Exception as e:
@@ -561,20 +576,33 @@ class OpenRiceChecker:
         """獲取頁面的BeautifulSoup物件"""
         if self.use_selenium and self.driver:
             try:
+                print(f"  使用Selenium獲取頁面: {url}")
                 self.driver.get(url)
                 # 等待頁面載入
-                time.sleep(3)  # 等待JavaScript執行
+                time.sleep(5)  # 增加等待時間，確保JavaScript執行完成
                 # 嘗試等待特定元素載入
                 try:
-                    WebDriverWait(self.driver, 10).until(
+                    WebDriverWait(self.driver, 15).until(
                         EC.presence_of_element_located((By.TAG_NAME, "body"))
                     )
+                    # 額外等待，確保動態內容載入
+                    time.sleep(2)
                 except:
-                    pass
+                    print(f"  警告: 等待body元素超時，繼續執行")
+                    time.sleep(3)  # 即使超時也等待一下
+                
                 html = self.driver.page_source
+                page_length = len(html)
+                print(f"  Selenium獲取頁面成功，內容長度: {page_length} 字元")
+                
+                if page_length < 1000:
+                    print(f"  警告: 頁面內容可能不完整")
+                
                 return BeautifulSoup(html, 'html.parser')
             except Exception as e:
                 print(f"  Selenium獲取頁面失敗: {e}，嘗試使用requests")
+                import traceback
+                print(traceback.format_exc())
                 # 如果Selenium失敗，回退到requests
                 pass
         
