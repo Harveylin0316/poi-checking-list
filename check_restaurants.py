@@ -518,6 +518,9 @@ class OpenRiceChecker:
                 else:
                     menu_url = base_url.rstrip('/') + '/menus'
                 
+                print(f"  檢查菜單頁面: {menu_url}")
+                sys.stdout.flush()
+                
                 menu_soup = self.get_page_soup(menu_url)
                 
                 # 先檢查是否有"沒有菜單"的提示
@@ -537,6 +540,8 @@ class OpenRiceChecker:
                 ]
                 for keyword in empty_keywords:
                     if keyword in menu_text:
+                        print(f"  ✗ 找到空狀態關鍵字: {keyword}")
+                        sys.stdout.flush()
                         return False  # 明確提示沒有菜單
                 
                 # 檢查是否有空狀態的class或id
@@ -554,6 +559,8 @@ class OpenRiceChecker:
                         for elem in empty_elements:
                             elem_text = elem.get_text()
                             if any(keyword in elem_text for keyword in empty_keywords):
+                                print(f"  ✗ 找到空狀態元素: {selector}")
+                                sys.stdout.flush()
                                 return False
                 
                 # 檢查是否有實際的照片（不是placeholder）
@@ -562,10 +569,14 @@ class OpenRiceChecker:
                     '[class*="photo-list"]',
                     '[class*="image-list"]',
                     '[class*="gallery"]',
-                    '[class*="photo-grid"]'
+                    '[class*="photo-grid"]',
+                    '[class*="menu"]',  # 菜單相關的容器
+                    '[class*="menu-photo"]',  # 菜單照片容器
+                    '[class*="menu-item"]',  # 菜單項目
                 ]
                 
                 photo_count = 0
+                all_found_imgs = []
                 
                 # 方法1: 檢查照片列表容器中的圖片
                 for selector in photo_list_selectors:
@@ -573,49 +584,77 @@ class OpenRiceChecker:
                     for container in containers:
                         imgs = container.find_all('img')
                         for img in imgs:
-                            src = img.get('src') or img.get('data-src') or img.get('data-lazy-src') or img.get('data-original')
+                            src = img.get('src') or img.get('data-src') or img.get('data-lazy-src') or img.get('data-original') or img.get('data-lazy')
                             if src:
-                                # 排除placeholder圖片
+                                all_found_imgs.append(src)
+                                # 排除placeholder圖片、logo、avatar
                                 if ('placeholder' not in src.lower() and 
                                     'logo' not in src.lower() and
                                     'avatar' not in src.lower() and
                                     ('http' in src or src.startswith('//'))):
-                                    # 檢查是否是OpenRice的圖片URL，排除門面照片
-                                    if ('orstatic.com' in src or 
-                                        '/photo/' in src or
-                                        'userphoto' in src):
-                                        # 排除門面照片（doorphoto）
-                                        if 'doorphoto' not in src.lower():
-                                            alt = img.get('alt', '').lower()
-                                            if 'door' not in alt and '門面' not in alt and '门面' not in alt:
+                                    # 更寬鬆的檢查：只要是有效的圖片URL，且不是門面照片
+                                    if 'doorphoto' not in src.lower():
+                                        alt = img.get('alt', '').lower()
+                                        if 'door' not in alt and '門面' not in alt and '门面' not in alt:
+                                            # 優先檢查OpenRice的圖片URL
+                                            if ('orstatic.com' in src or 
+                                                '/photo/' in src or
+                                                'userphoto' in src or
+                                                'openrice' in src.lower()):
                                                 photo_count += 1
+                                                print(f"  ✓ 找到菜單照片 ({photo_count}): {src[:80]}...")
+                                                sys.stdout.flush()
                 
-                # 方法2: 如果照片列表容器中沒有找到，檢查所有圖片
+                # 方法2: 如果照片列表容器中沒有找到，檢查所有圖片（更寬鬆的條件）
                 if photo_count == 0:
+                    print("  照片列表容器中未找到，檢查所有圖片...")
+                    sys.stdout.flush()
                     all_imgs = menu_soup.find_all('img')
+                    print(f"  找到 {len(all_imgs)} 張圖片")
+                    sys.stdout.flush()
+                    
                     for img in all_imgs:
-                        src = img.get('src') or img.get('data-src') or img.get('data-lazy-src') or img.get('data-original')
+                        src = img.get('src') or img.get('data-src') or img.get('data-lazy-src') or img.get('data-original') or img.get('data-lazy')
                         if src:
                             # 排除placeholder和logo等非照片圖片
                             if ('placeholder' not in src.lower() and 
                                 'logo' not in src.lower() and
                                 'avatar' not in src.lower() and
                                 ('http' in src or src.startswith('//'))):
-                                # 檢查是否是使用者上傳的照片，排除門面照片
-                                if ('userphoto' in src or 
-                                    '/photo/' in src or
-                                    'orstatic.com/userphoto' in src):
-                                    # 排除門面照片（doorphoto）
-                                    if 'doorphoto' not in src.lower():
-                                        alt = img.get('alt', '').lower()
-                                        if 'door' not in alt and '門面' not in alt and '门面' not in alt:
+                                # 排除門面照片（doorphoto）
+                                if 'doorphoto' not in src.lower():
+                                    alt = img.get('alt', '').lower()
+                                    if 'door' not in alt and '門面' not in alt and '门面' not in alt:
+                                        # 更寬鬆的條件：只要是OpenRice相關的圖片URL
+                                        if ('orstatic.com' in src or 
+                                            '/photo/' in src or
+                                            'userphoto' in src or
+                                            'openrice' in src.lower() or
+                                            'menu' in src.lower()):  # 包含menu關鍵字的圖片
                                             photo_count += 1
+                                            print(f"  ✓ 找到菜單照片 ({photo_count}): {src[:80]}...")
+                                            sys.stdout.flush()
+                
+                if photo_count > 0:
+                    print(f"  ✓ 菜單檢查通過，找到 {photo_count} 張菜單照片")
+                    sys.stdout.flush()
+                else:
+                    print(f"  ✗ 菜單檢查失敗，未找到有效照片")
+                    print(f"  找到的圖片URL數量: {len(all_found_imgs)}")
+                    if len(all_found_imgs) > 0:
+                        print(f"  前3個圖片URL示例:")
+                        for i, img_url in enumerate(all_found_imgs[:3]):
+                            print(f"    {i+1}. {img_url[:100]}")
+                    sys.stdout.flush()
                 
                 # 至少需要1張實際照片才算有照片
                 return photo_count > 0
                 
             except Exception as e:
                 print(f"  檢查菜單頁面 '/menus' 時出錯: {e}")
+                import traceback
+                print(traceback.format_exc())
+                sys.stdout.flush()
                 return False
         
         # 備用方法：在主頁面查找（僅作為最後手段）
