@@ -389,47 +389,140 @@ class OpenRiceChecker:
             
             # 對於videos分類，檢查是否有實際的影片
             if category_path == 'videos':
+                print(f"  檢查影片頁面: {category_url}")
+                sys.stdout.flush()
+                
+                # 先檢查是否有"沒有影片"的提示
+                page_text = soup.get_text()
+                empty_keywords = [
+                    '此餐廳暫時沒有影片',
+                    '此餐厅暂时没有视频',
+                    '暫無影片',
+                    '暂无视频',
+                    '沒有影片',
+                    '没有视频',
+                    '尚無影片',
+                    '尚无视频',
+                    'no video',
+                    'no videos',
+                    '暫時沒有',
+                    '暂时没有',
+                    '尚無相關',
+                    '暂无相关'
+                ]
+                for keyword in empty_keywords:
+                    if keyword in page_text:
+                        print(f"  ✗ 找到空狀態關鍵字: {keyword}")
+                        sys.stdout.flush()
+                        return False
+                
+                # 檢查是否有空狀態的class或id
+                empty_selectors = [
+                    '[class*="empty"]',
+                    '[class*="no-video"]',
+                    '[class*="no_video"]',
+                    '[id*="empty"]',
+                    '[id*="no-video"]'
+                ]
+                for selector in empty_selectors:
+                    empty_elements = soup.select(selector)
+                    if empty_elements:
+                        for elem in empty_elements:
+                            elem_text = elem.get_text()
+                            if any(keyword in elem_text for keyword in empty_keywords):
+                                print(f"  ✗ 找到空狀態元素: {selector}")
+                                sys.stdout.flush()
+                                return False
+                
                 # 檢查video標籤
                 videos = soup.find_all('video')
                 if len(videos) > 0:
+                    print(f"  ✓ 找到 {len(videos)} 個video標籤")
+                    sys.stdout.flush()
                     return True
                 
                 # 檢查iframe是否有有效的影片來源
                 iframes = soup.find_all('iframe')
+                valid_iframe_count = 0
                 for iframe in iframes:
                     src = iframe.get('src', '')
-                    if src and any(platform in src.lower() for platform in ['youtube', 'vimeo', 'video', 'youku', 'tiktok', 'instagram']):
-                        return True
+                    if src and any(platform in src.lower() for platform in ['youtube.com', 'youtu.be', 'vimeo.com', 'video', 'youku.com', 'tiktok.com', 'instagram.com']):
+                        # 進一步驗證：確保是有效的影片URL
+                        if not any(exclude in src.lower() for exclude in ['placeholder', 'logo', 'avatar']):
+                            valid_iframe_count += 1
+                            print(f"  ✓ 找到有效的影片iframe: {src[:80]}...")
+                            sys.stdout.flush()
                 
-                # 檢查影片容器中是否有影片縮圖
+                if valid_iframe_count > 0:
+                    return True
+                
+                # 檢查影片容器中是否有影片縮圖（更嚴格的檢查）
                 video_containers = soup.select('[class*="video"], [class*="reel"], [class*="media"]')
                 video_thumbnail_count = 0
+                all_found_imgs = []
+                
                 for container in video_containers:
                     imgs = container.find_all('img')
                     for img in imgs:
                         src = img.get('src') or img.get('data-src') or img.get('data-lazy-src') or img.get('data-original')
                         if src:
+                            all_found_imgs.append(src)
                             # 排除placeholder、logo、avatar和門面照片
                             if ('placeholder' not in src.lower() and 
                                 'logo' not in src.lower() and
                                 'avatar' not in src.lower() and
                                 'doorphoto' not in src.lower() and  # 排除門面照片
                                 ('http' in src or src.startswith('//'))):
-                                # 檢查是否是OpenRice的影片相關圖片（影片CDN）
-                                if ('c-vod.orstatic.com' in src or  # 影片CDN
+                                # 更嚴格的檢查：必須是明確的影片CDN或包含video/reel關鍵字
+                                if ('c-vod.orstatic.com' in src or  # 影片CDN（最可靠）
                                     ('orstatic.com' in src and '/video/' in src.lower()) or
-                                    ('orstatic.com' in src and 'reel' in src.lower())):
-                                    # 進一步檢查alt屬性，排除門面照片
+                                    ('orstatic.com' in src and '/reel/' in src.lower())):
+                                    # 進一步檢查alt屬性，排除門面照片和其他非影片內容
                                     alt = img.get('alt', '').lower()
-                                    if 'door' not in alt and '門面' not in alt and '门面' not in alt:
+                                    if ('door' not in alt and 
+                                        '門面' not in alt and 
+                                        '门面' not in alt and
+                                        'menu' not in alt and
+                                        '菜單' not in alt and
+                                        '菜单' not in alt):
                                         video_thumbnail_count += 1
+                                        print(f"  ✓ 找到影片縮圖 ({video_thumbnail_count}): {src[:80]}...")
+                                        sys.stdout.flush()
                 
-                # 如果有影片縮圖，認為有影片
+                # 如果沒有在容器中找到，檢查所有圖片（但更嚴格）
+                if video_thumbnail_count == 0:
+                    print("  影片容器中未找到，檢查所有圖片...")
+                    sys.stdout.flush()
+                    all_imgs = soup.find_all('img')
+                    for img in all_imgs:
+                        src = img.get('src') or img.get('data-src') or img.get('data-lazy-src') or img.get('data-original')
+                        if src:
+                            # 只檢查明確的影片CDN
+                            if 'c-vod.orstatic.com' in src:  # 最可靠的影片CDN
+                                alt = img.get('alt', '').lower()
+                                if ('door' not in alt and 
+                                    '門面' not in alt and 
+                                    '门面' not in alt and
+                                    'menu' not in alt and
+                                    '菜單' not in alt and
+                                    '菜单' not in alt):
+                                    video_thumbnail_count += 1
+                                    print(f"  ✓ 找到影片縮圖 ({video_thumbnail_count}): {src[:80]}...")
+                                    sys.stdout.flush()
+                
                 if video_thumbnail_count > 0:
+                    print(f"  ✓ 影片檢查通過，找到 {video_thumbnail_count} 個影片縮圖")
+                    sys.stdout.flush()
                     return True
-                
-                # 如果沒有video、有效的iframe或影片縮圖，返回False
-                return False
+                else:
+                    print(f"  ✗ 影片檢查失敗，未找到有效影片")
+                    print(f"  找到的圖片URL數量: {len(all_found_imgs)}")
+                    if len(all_found_imgs) > 0:
+                        print(f"  前3個圖片URL示例:")
+                        for i, img_url in enumerate(all_found_imgs[:3]):
+                            print(f"    {i+1}. {img_url[:100]}")
+                    sys.stdout.flush()
+                    return False
             
             # 對於照片分類（decor, menu, food），檢查是否有實際照片
             # 檢查是否有實際的照片（不是placeholder）
