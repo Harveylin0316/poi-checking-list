@@ -84,6 +84,10 @@ if 'temp_file' not in st.session_state:
     st.session_state.temp_file = None
 if 'df_restaurants' not in st.session_state:
     st.session_state.df_restaurants = None
+if 'checker' not in st.session_state:
+    st.session_state.checker = None
+if 'checker_initialized' not in st.session_state:
+    st.session_state.checker_initialized = False
 
 # 開始檢查按鈕
 st.markdown("---")
@@ -169,6 +173,11 @@ if uploaded_file is not None:
             
             try:
                 # 使用已創建的checker（復用，避免重複創建）
+                # 如果checker未初始化，先初始化
+                if st.session_state.checker is None:
+                    st.session_state.checker = OpenRiceChecker(st.session_state.temp_file, use_selenium=False)
+                    st.session_state.checker_initialized = True
+                
                 checker = st.session_state.checker
                 
                 # 檢查餐廳
