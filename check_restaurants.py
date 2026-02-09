@@ -39,17 +39,27 @@ class OpenRiceChecker:
         self.use_selenium = use_selenium and SELENIUM_AVAILABLE
         
         if self.use_selenium:
-            # 設定Chrome選項
+            # 設定Chrome選項（Railway/Docker環境需要特殊配置）
             chrome_options = Options()
-            chrome_options.add_argument('--headless')  # 無頭模式
-            chrome_options.add_argument('--no-sandbox')
-            chrome_options.add_argument('--disable-dev-shm-usage')
-            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--headless=new')  # 使用新的headless模式
+            chrome_options.add_argument('--no-sandbox')  # 必須：Docker環境需要
+            chrome_options.add_argument('--disable-dev-shm-usage')  # 必須：避免共享內存問題
+            chrome_options.add_argument('--disable-gpu')  # 必須：無GPU環境
             chrome_options.add_argument('--disable-software-rasterizer')
             chrome_options.add_argument('--disable-extensions')
-            chrome_options.add_argument('--single-process')  # Railway環境需要
+            chrome_options.add_argument('--disable-setuid-sandbox')  # 額外的sandbox禁用
+            chrome_options.add_argument('--disable-web-security')  # 允許跨域請求
+            chrome_options.add_argument('--disable-features=VizDisplayCompositor')  # 禁用某些功能
             chrome_options.add_argument('--window-size=1920,1080')
+            chrome_options.add_argument('--remote-debugging-port=9222')  # 遠程調試端口
+            chrome_options.add_argument('--disable-background-timer-throttling')
+            chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+            chrome_options.add_argument('--disable-renderer-backgrounding')
             chrome_options.add_argument('user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+            
+            # 禁用某些可能導致問題的功能
+            chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
+            chrome_options.add_experimental_option('useAutomationExtension', False)
             
             try:
                 # 檢查是否在Railway/Docker環境中
@@ -123,17 +133,52 @@ class OpenRiceChecker:
                     sys.stdout.flush()
                     service = Service(ChromeDriverManager().install())
                 
-                # 創建WebDriver實例
+                # 創建WebDriver實例（添加重試機制）
                 print("正在創建Chrome WebDriver實例...")
                 sys.stdout.flush()
-                self.driver = webdriver.Chrome(service=service, options=chrome_options)
                 
-                # 測試WebDriver是否正常工作
-                self.driver.set_page_load_timeout(30)
-                print("=" * 50)
-                print("✓ Selenium初始化成功！已啟用（可處理JavaScript動態內容）")
-                print("=" * 50)
-                sys.stdout.flush()
+                max_retries = 3
+                retry_count = 0
+                driver_created = False
+                
+                while retry_count < max_retries and not driver_created:
+                    try:
+                        if retry_count > 0:
+                            print(f"重試創建WebDriver ({retry_count}/{max_retries})...")
+                            time.sleep(2)  # 等待一下再重試
+                            sys.stdout.flush()
+                        
+                        self.driver = webdriver.Chrome(service=service, options=chrome_options)
+                        
+                        # 設置超時時間
+                        self.driver.set_page_load_timeout(30)
+                        self.driver.implicitly_wait(10)
+                        
+                        # 測試WebDriver是否正常工作（訪問一個簡單頁面）
+                        print("測試WebDriver連接...")
+                        sys.stdout.flush()
+                        self.driver.get("data:text/html,<html><body>Test</body></html>")
+                        
+                        driver_created = True
+                        print("=" * 50)
+                        print("✓ Selenium初始化成功！已啟用（可處理JavaScript動態內容）")
+                        print("=" * 50)
+                        sys.stdout.flush()
+                    except Exception as e:
+                        retry_count += 1
+                        print(f"創建WebDriver失敗 (嘗試 {retry_count}/{max_retries}): {e}")
+                        sys.stdout.flush()
+                        
+                        if retry_count >= max_retries:
+                            raise Exception(f"創建WebDriver失敗，已重試{max_retries}次: {e}")
+                        
+                        # 清理失敗的driver實例
+                        if hasattr(self, 'driver') and self.driver:
+                            try:
+                                self.driver.quit()
+                            except:
+                                pass
+                            self.driver = None
             except Exception as e:
                 print("=" * 50)
                 print(f"✗ Selenium初始化失敗: {e}")
