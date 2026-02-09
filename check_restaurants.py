@@ -61,10 +61,20 @@ class OpenRiceChecker:
         
         if not self.use_selenium:
             self.session = requests.Session()
+            # 啟用連接池和keep-alive，提高性能
+            adapter = requests.adapters.HTTPAdapter(
+                pool_connections=10,  # 連接池大小
+                pool_maxsize=20,      # 最大連接數
+                max_retries=2,        # 重試次數
+                pool_block=False      # 非阻塞
+            )
+            self.session.mount('http://', adapter)
+            self.session.mount('https://', adapter)
             self.session.headers.update({
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8'
+                'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
+                'Connection': 'keep-alive'  # 保持連接
             })
     
     def __del__(self):
@@ -524,11 +534,11 @@ class OpenRiceChecker:
             try:
                 # 先嘗試HEAD請求（更輕量）
                 try:
-                    response = self.session.head(url, timeout=15, allow_redirects=True)
+                    response = self.session.head(url, timeout=8, allow_redirects=True)
                     actual_url = response.url
                 except:
                     # 如果HEAD失敗，使用GET請求
-                    response = self.session.get(url, timeout=15, allow_redirects=True, stream=True)
+                    response = self.session.get(url, timeout=8, allow_redirects=True, stream=True)
                     actual_url = response.url
                     response.close()  # 關閉連接，不讀取內容
                 
@@ -570,7 +580,8 @@ class OpenRiceChecker:
         
         # 使用requests作為備選
         try:
-            response = self.session.get(url, timeout=15)
+            # 減少超時時間（從15秒減少到10秒，加快失敗響應）
+            response = self.session.get(url, timeout=10)
             response.raise_for_status()
             
             # 檢查Content-Encoding，如果是br (Brotli)，嘗試解壓
@@ -588,7 +599,7 @@ class OpenRiceChecker:
                 # 如果沒有brotli庫或解壓失敗，重新請求不使用br壓縮
                 headers = self.session.headers.copy()
                 headers['Accept-Encoding'] = 'gzip, deflate'
-                no_br_response = requests.get(url, headers=headers, timeout=15)
+                no_br_response = requests.get(url, headers=headers, timeout=10)
                 no_br_response.raise_for_status()
                 return BeautifulSoup(no_br_response.content, 'html.parser')
             

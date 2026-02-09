@@ -138,6 +138,11 @@ if uploaded_file is not None:
             st.session_state.total_restaurants = len(df)
             st.session_state.df_restaurants = df
             
+            # 初始化checker（只創建一次，復用）
+            if not st.session_state.checker_initialized:
+                st.session_state.checker = OpenRiceChecker(temp_file, use_selenium=False)
+                st.session_state.checker_initialized = True
+            
             st.rerun()
     
     # 如果正在檢查，執行檢查邏輯
@@ -163,8 +168,8 @@ if uploaded_file is not None:
             status_text.text(f"正在檢查: {restaurant_name} ({current_idx + 1}/{total})")
             
             try:
-                # 創建檢查器（每次重新創建，避免序列化問題）
-                checker = OpenRiceChecker(st.session_state.temp_file, use_selenium=False)
+                # 使用已創建的checker（復用，避免重複創建）
+                checker = st.session_state.checker
                 
                 # 檢查餐廳
                 result = checker.check_restaurant(url, restaurant_name)
@@ -173,8 +178,9 @@ if uploaded_file is not None:
                 # 更新索引
                 st.session_state.current_index += 1
                 
-                # 延遲（可選，避免請求過快）
-                time.sleep(0.5)
+                # 減少延遲（從0.5秒減少到0.1秒，或完全移除）
+                # 因為我們已經有session復用，不需要太多延遲
+                time.sleep(0.1)
                 
                 # 繼續下一個
                 st.rerun()
@@ -192,6 +198,10 @@ if uploaded_file is not None:
             st.session_state.checking = False
             progress_bar.progress(1.0)
             st.success("✅ 檢查完成！")
+            
+            # 清理checker
+            st.session_state.checker = None
+            st.session_state.checker_initialized = False
         
         # 顯示當前進度
         if len(st.session_state.results) > 0:
@@ -256,6 +266,8 @@ if uploaded_file is not None:
             st.session_state.results = []
             st.session_state.current_index = 0
             st.session_state.df_restaurants = None
+            st.session_state.checker = None
+            st.session_state.checker_initialized = False
             if st.session_state.temp_file and os.path.exists(st.session_state.temp_file):
                 os.remove(st.session_state.temp_file)
             st.session_state.temp_file = None
