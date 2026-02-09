@@ -615,9 +615,19 @@ class OpenRiceChecker:
         try:
             # 解析縮短URL，獲取實際URL
             actual_url = self.resolve_short_url(url)
+            print(f"  實際URL: {actual_url}")
             
             # 使用實際URL獲取頁面
             soup = self.get_page_soup(actual_url)
+            
+            # 檢查是否成功獲取頁面
+            if soup is None:
+                raise Exception("無法獲取頁面內容")
+            
+            # 檢查頁面是否有內容
+            page_text = soup.get_text() if soup else ""
+            if len(page_text) < 100:
+                print(f"  警告: 頁面內容過短 ({len(page_text)} 字元)，可能是錯誤頁面")
             
             # 使用實際URL構建子頁面URL
             checks = {
@@ -628,6 +638,16 @@ class OpenRiceChecker:
                 '餐點照片': self.check_food_photos(soup, base_url=actual_url),
                 '相關影片': self.check_videos(soup, base_url=actual_url)
             }
+            
+            # 打印每個檢查項目的結果（調試用）
+            for key, value in checks.items():
+                if isinstance(value, tuple):
+                    status = "✓" if value[0] else "✗"
+                    detail = value[1] if len(value) > 1 else ""
+                    print(f"  {key}: {status} {detail}")
+                else:
+                    status = "✓" if value else "✗"
+                    print(f"  {key}: {status}")
             
             # 統計通過和失敗的檢查項目
             def is_passed(check_result):

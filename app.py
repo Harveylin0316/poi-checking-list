@@ -182,6 +182,19 @@ if uploaded_file is not None:
                 
                 # 檢查餐廳
                 result = checker.check_restaurant(url, restaurant_name)
+                
+                # 顯示調試信息（如果有錯誤）
+                if result.get('狀態') == '錯誤':
+                    st.warning(f"⚠️ {restaurant_name}: {result.get('錯誤資訊', '未知錯誤')}")
+                elif result.get('狀態') == '不合格':
+                    # 顯示詳細的檢查結果
+                    failed_items = []
+                    for key in ['中文名稱', '英文名稱', '門面照片', '菜單', '餐點照片', '相關影片']:
+                        if result.get(key) == '✗':
+                            failed_items.append(key)
+                    if failed_items:
+                        st.caption(f"❌ 缺少: {', '.join(failed_items)}")
+                
                 st.session_state.results.append(result)
                 
                 # 更新索引
@@ -241,6 +254,17 @@ if uploaded_file is not None:
         
         # 顯示結果表格
         st.subheader("詳細結果")
+        
+        # 如果有錯誤，顯示錯誤詳情
+        error_results = df_results[df_results['狀態'] == '錯誤']
+        if len(error_results) > 0:
+            st.warning(f"⚠️ {len(error_results)} 間餐廳檢查時發生錯誤")
+            with st.expander("查看錯誤詳情"):
+                error_cols = ['餐廳名稱', 'URL']
+                if '錯誤資訊' in error_results.columns:
+                    error_cols.append('錯誤資訊')
+                st.dataframe(error_results[error_cols], use_container_width=True)
+        
         st.dataframe(df_results, use_container_width=True)
         
         # 不合格餐廳清單
