@@ -285,7 +285,13 @@ if uploaded_file is not None:
         failed_restaurants = df_results[df_results['狀態'] != '合格']
         if len(failed_restaurants) > 0:
             st.subheader("❌ 不合格餐廳清單")
-            st.dataframe(failed_restaurants[['餐廳名稱', 'URL', '狀態', '通過率']], use_container_width=True)
+            # 只選擇存在的列，避免KeyError
+            display_cols = ['餐廳名稱', 'URL', '狀態']
+            if '通過率' in failed_restaurants.columns:
+                display_cols.append('通過率')
+            if '錯誤資訊' in failed_restaurants.columns:
+                display_cols.append('錯誤資訊')
+            st.dataframe(failed_restaurants[display_cols], use_container_width=True)
         
         # 產生報告檔案
         output_file = 'restaurant_check_report.xlsx'

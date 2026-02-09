@@ -711,8 +711,15 @@ class OpenRiceChecker:
                 '餐廳名稱': restaurant_name,
                 'URL': url,
                 '檢查時間': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                '通過率': '0/6',
                 '狀態': '錯誤',
-                '錯誤資訊': '請求超時'
+                '錯誤資訊': '請求超時',
+                '中文名稱': '✗',
+                '英文名稱': '✗',
+                '門面照片': '✗',
+                '菜單': '✗',
+                '餐點照片': '✗',
+                '相關影片': '✗'
             }
         except requests.exceptions.RequestException as e:
             print(f"請求錯誤 {restaurant_name}: {e}")
@@ -720,8 +727,15 @@ class OpenRiceChecker:
                 '餐廳名稱': restaurant_name,
                 'URL': url,
                 '檢查時間': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                '通過率': '0/6',
                 '狀態': '錯誤',
-                '錯誤資訊': f'請求錯誤: {str(e)}'
+                '錯誤資訊': f'請求錯誤: {str(e)}',
+                '中文名稱': '✗',
+                '英文名稱': '✗',
+                '門面照片': '✗',
+                '菜單': '✗',
+                '餐點照片': '✗',
+                '相關影片': '✗'
             }
         except Exception as e:
             print(f"檢查 {restaurant_name} 時出錯: {e}")
@@ -729,8 +743,15 @@ class OpenRiceChecker:
                 '餐廳名稱': restaurant_name,
                 'URL': url,
                 '檢查時間': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                '通過率': '0/6',
                 '狀態': '錯誤',
-                '錯誤資訊': str(e)
+                '錯誤資訊': str(e),
+                '中文名稱': '✗',
+                '英文名稱': '✗',
+                '門面照片': '✗',
+                '菜單': '✗',
+                '餐點照片': '✗',
+                '相關影片': '✗'
             }
     
     def run_check(self, delay=1):
