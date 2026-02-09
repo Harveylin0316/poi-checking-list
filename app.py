@@ -69,30 +69,55 @@ if uploaded_file is not None:
         st.error(f"讀取Excel檔案時出錯: {e}")
         uploaded_file = None
 
+# 初始化session state
+if 'checking' not in st.session_state:
+    st.session_state.checking = False
+if 'should_stop' not in st.session_state:
+    st.session_state.should_stop = False
+if 'results' not in st.session_state:
+    st.session_state.results = []
+if 'current_index' not in st.session_state:
+    st.session_state.current_index = 0
+if 'total_restaurants' not in st.session_state:
+    st.session_state.total_restaurants = 0
+if 'temp_file' not in st.session_state:
+    st.session_state.temp_file = None
+if 'df_restaurants' not in st.session_state:
+    st.session_state.df_restaurants = None
+
 # 開始檢查按鈕
 st.markdown("---")
 st.header("🚀 步驟2: 開始檢查")
 
 if uploaded_file is not None:
-    if st.button("開始檢查", type="primary", use_container_width=True):
-        # 儲存上傳的檔案到臨時位置
-        temp_file = "temp_restaurants.xlsx"
-        with open(temp_file, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        
-        # 創建檢查器
-        checker = OpenRiceChecker(temp_file, use_selenium=False)
-        
-        # 進度條
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        results_container = st.container()
-        
-        # 執行檢查
-        total_restaurants = len(pd.read_excel(temp_file))
-        results_list = []
-        
-        try:
+    # 顯示停止按鈕（如果正在檢查）
+    if st.session_state.checking:
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.info("🔄 檢查進行中...")
+        with col2:
+            if st.button("⏹️ 停止檢查", type="secondary", use_container_width=True):
+                st.session_state.should_stop = True
+                st.session_state.checking = False
+                st.rerun()
+    
+    # 開始檢查按鈕
+    if not st.session_state.checking:
+        if st.button("開始檢查", type="primary", use_container_width=True):
+            # 重置狀態
+            st.session_state.checking = True
+            st.session_state.should_stop = False
+            st.session_state.results = []
+            st.session_state.current_index = 0
+            
+            # 儲存上傳的檔案到臨時位置
+            temp_file = "temp_restaurants.xlsx"
+            with open(temp_file, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            
+            st.session_state.temp_file = temp_file
+            
+            # 讀取並處理Excel
             df = pd.read_excel(temp_file)
             
             # 檢查必要的欄位
@@ -110,82 +135,136 @@ if uploaded_file is not None:
                         df['餐廳名稱'] = df[col]
                         break
             
-            for idx, row in df.iterrows():
-                restaurant_name = row['餐廳名稱']
-                url = row['URL']
-                
-                # 更新進度
-                progress = (idx + 1) / total_restaurants
-                progress_bar.progress(progress)
-                status_text.text(f"正在檢查: {restaurant_name} ({idx + 1}/{total_restaurants})")
+            st.session_state.total_restaurants = len(df)
+            st.session_state.df_restaurants = df
+            
+            st.rerun()
+    
+    # 如果正在檢查，執行檢查邏輯
+    if st.session_state.checking and st.session_state.df_restaurants is not None:
+        df = st.session_state.df_restaurants
+        current_idx = st.session_state.current_index
+        total = st.session_state.total_restaurants
+        
+        # 進度條
+        progress_bar = st.progress(current_idx / total if total > 0 else 0)
+        
+        # 檢查是否應該停止
+        if st.session_state.should_stop:
+            st.session_state.checking = False
+            st.warning("⚠️ 檢查已中斷")
+        elif current_idx < total:
+            # 檢查當前餐廳
+            row = df.iloc[current_idx]
+            restaurant_name = row['餐廳名稱']
+            url = row['URL']
+            
+            status_text = st.empty()
+            status_text.text(f"正在檢查: {restaurant_name} ({current_idx + 1}/{total})")
+            
+            try:
+                # 創建檢查器（每次重新創建，避免序列化問題）
+                checker = OpenRiceChecker(st.session_state.temp_file, use_selenium=False)
                 
                 # 檢查餐廳
                 result = checker.check_restaurant(url, restaurant_name)
-                results_list.append(result)
+                st.session_state.results.append(result)
                 
-                # 延遲
-                time.sleep(1)
-            
-            # 完成
+                # 更新索引
+                st.session_state.current_index += 1
+                
+                # 延遲（可選，避免請求過快）
+                time.sleep(0.5)
+                
+                # 繼續下一個
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"檢查 {restaurant_name} 時出錯: {e}")
+                st.session_state.current_index += 1
+                # 即使出錯也繼續下一個
+                if st.session_state.current_index < total:
+                    st.rerun()
+                else:
+                    st.session_state.checking = False
+        else:
+            # 檢查完成
+            st.session_state.checking = False
             progress_bar.progress(1.0)
-            status_text.text("✅ 檢查完成！")
-            
-            # 顯示結果
-            st.markdown("---")
-            st.header("📊 檢查結果")
-            
-            df_results = pd.DataFrame(results_list)
-            
-            # 統計
-            total = len(df_results)
-            passed = len(df_results[df_results['狀態'] == '合格'])
-            failed = total - passed
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("總餐廳數", total)
-            with col2:
-                st.metric("合格餐廳", passed, delta=f"{passed/total*100:.1f}%")
-            with col3:
-                st.metric("不合格餐廳", failed, delta=f"{failed/total*100:.1f}%")
-            
-            # 顯示結果表格
-            st.subheader("詳細結果")
-            st.dataframe(df_results, use_container_width=True)
-            
-            # 不合格餐廳清單
-            failed_restaurants = df_results[df_results['狀態'] != '合格']
+            st.success("✅ 檢查完成！")
+        
+        # 顯示當前進度
+        if len(st.session_state.results) > 0:
+            st.info(f"已完成 {len(st.session_state.results)}/{total} 間餐廳")
+    
+    # 顯示結果（如果有結果且不在檢查中）
+    if len(st.session_state.results) > 0 and not st.session_state.checking:
+        st.markdown("---")
+        st.header("📊 檢查結果")
+        
+        df_results = pd.DataFrame(st.session_state.results)
+        
+        # 統計
+        total = len(df_results)
+        passed = len(df_results[df_results['狀態'] == '合格'])
+        failed = total - passed
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("已檢查餐廳數", total)
+        with col2:
+            st.metric("合格餐廳", passed, delta=f"{passed/total*100:.1f}%" if total > 0 else "0%")
+        with col3:
+            st.metric("不合格餐廳", failed, delta=f"{failed/total*100:.1f}%" if total > 0 else "0%")
+        
+        if st.session_state.should_stop:
+            st.info(f"💡 共 {st.session_state.total_restaurants} 間餐廳，已檢查 {total} 間")
+        
+        # 顯示結果表格
+        st.subheader("詳細結果")
+        st.dataframe(df_results, use_container_width=True)
+        
+        # 不合格餐廳清單
+        failed_restaurants = df_results[df_results['狀態'] != '合格']
+        if len(failed_restaurants) > 0:
+            st.subheader("❌ 不合格餐廳清單")
+            st.dataframe(failed_restaurants[['餐廳名稱', 'URL', '狀態', '通過率']], use_container_width=True)
+        
+        # 產生報告檔案
+        output_file = 'restaurant_check_report.xlsx'
+        with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+            df_results.to_excel(writer, sheet_name='完整報告', index=False)
             if len(failed_restaurants) > 0:
-                st.subheader("❌ 不合格餐廳清單")
-                st.dataframe(failed_restaurants[['餐廳名稱', 'URL', '狀態', '通過率']], use_container_width=True)
-            
-            # 產生報告檔案
-            output_file = 'restaurant_check_report.xlsx'
-            with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-                df_results.to_excel(writer, sheet_name='完整報告', index=False)
-                if len(failed_restaurants) > 0:
-                    failed_restaurants.to_excel(writer, sheet_name='不合格餐廳', index=False)
-            
-            # 下載按鈕
-            st.markdown("---")
-            st.header("📥 步驟3: 下載報告")
-            with open(output_file, "rb") as f:
-                st.download_button(
-                    label="下載Excel報告",
-                    data=f.read(),
-                    file_name=output_file,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
-                )
-            
-            # 清理臨時檔案
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
-            
-        except Exception as e:
-            st.error(f"檢查過程中出錯: {e}")
-            import traceback
-            st.code(traceback.format_exc())
+                failed_restaurants.to_excel(writer, sheet_name='不合格餐廳', index=False)
+        
+        # 下載按鈕
+        st.markdown("---")
+        st.header("📥 步驟3: 下載報告")
+        with open(output_file, "rb") as f:
+            st.download_button(
+                label="下載Excel報告",
+                data=f.read(),
+                file_name=output_file,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        
+        # 重置按鈕
+        if st.button("🔄 重新開始檢查", use_container_width=True):
+            st.session_state.checking = False
+            st.session_state.should_stop = False
+            st.session_state.results = []
+            st.session_state.current_index = 0
+            st.session_state.df_restaurants = None
+            if st.session_state.temp_file and os.path.exists(st.session_state.temp_file):
+                os.remove(st.session_state.temp_file)
+            st.session_state.temp_file = None
+            st.rerun()
+        
+        # 清理臨時檔案（在顯示結果後）
+        if st.session_state.temp_file and os.path.exists(st.session_state.temp_file):
+            # 延遲清理，讓用戶有時間下載報告
+            pass
 else:
     st.info("👆 請先上傳Excel檔案")
 
