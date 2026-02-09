@@ -39,6 +39,7 @@ class OpenRiceChecker:
         self.excel_file = excel_file
         self.results = []
         self.use_selenium = use_selenium and SELENIUM_AVAILABLE
+        self.driver = None  # 初始化driver屬性，避免__del__時出錯
         
         if self.use_selenium:
             # 設定Chrome選項（Railway/Docker環境需要特殊配置）
