@@ -874,8 +874,11 @@ class OpenRiceChecker:
         
         return url
     
-    def get_page_soup(self, url):
-        """獲取頁面的BeautifulSoup物件"""
+    def get_page_soup(self, url, fast_mode=False):
+        """獲取頁面的BeautifulSoup物件
+        :param url: 頁面URL
+        :param fast_mode: 快速模式，減少等待時間（用於照片分類頁面）
+        """
         if self.use_selenium and self.driver:
             try:
                 print(f"  使用Selenium獲取頁面: {url}")
@@ -924,38 +927,42 @@ class OpenRiceChecker:
                 sys.stdout.flush()
                 self.driver.get(url)
                 
-                # 等待頁面載入
+                # 等待頁面載入（優化：根據模式調整等待時間）
+                wait_time = 1 if fast_mode else 2
+                timeout = 5 if fast_mode else 10
+                
                 print("  等待頁面載入...")
                 sys.stdout.flush()
-                time.sleep(5)  # 增加等待時間，確保JavaScript執行完成
+                time.sleep(wait_time)
                 
                 # 嘗試等待特定元素載入
                 try:
                     print("  等待body元素載入...")
                     sys.stdout.flush()
-                    WebDriverWait(self.driver, 20).until(
+                    WebDriverWait(self.driver, timeout).until(
                         EC.presence_of_element_located((By.TAG_NAME, "body"))
                     )
                     # 額外等待，確保動態內容載入
                     print("  body元素已載入，等待動態內容...")
                     sys.stdout.flush()
-                    time.sleep(5)  # 增加等待時間，確保JavaScript渲染完成
+                    time.sleep(wait_time)
                 except Exception as e:
                     print(f"  警告: 等待body元素超時: {e}，繼續執行")
                     sys.stdout.flush()
-                    time.sleep(5)  # 即使超時也等待一下
+                    time.sleep(wait_time)
                 
-                # 滾動頁面以觸發懶加載
-                try:
-                    print("  滾動頁面以觸發懶加載...")
-                    sys.stdout.flush()
-                    self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                    time.sleep(3)
-                    self.driver.execute_script("window.scrollTo(0, 0);")
-                    time.sleep(2)
-                except Exception as e:
-                    print(f"  滾動頁面失敗: {e}")
-                    sys.stdout.flush()
+                # 滾動頁面以觸發懶加載（快速模式跳過滾動）
+                if not fast_mode:
+                    try:
+                        print("  滾動頁面以觸發懶加載...")
+                        sys.stdout.flush()
+                        self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                        time.sleep(1)
+                        self.driver.execute_script("window.scrollTo(0, 0);")
+                        time.sleep(0.5)
+                    except Exception as e:
+                        print(f"  滾動頁面失敗: {e}")
+                        sys.stdout.flush()
                 
                 html = self.driver.page_source
                 page_length = len(html)
@@ -1107,12 +1114,23 @@ class OpenRiceChecker:
             passed = sum(1 for result in checks.values() if is_passed(result))
             total = len(checks)
             
+            # 判斷狀態：如果只有"相關影片"不符合，顯示特殊狀態
+            videos_passed = is_passed(checks['相關影片'])
+            other_checks_passed = all(is_passed(checks[key]) for key in ['中文名稱', '英文名稱', '門面照片', '菜單', '餐點照片'])
+            
+            if passed == total:
+                status = '合格'
+            elif not videos_passed and other_checks_passed:
+                status = '符合上限標準(非重點poi請商家提供影片, 若是重點poi請行銷-攝影安排影片拍攝)'
+            else:
+                status = '不合格'
+            
             result = {
                 '餐廳名稱': restaurant_name,
                 'URL': url,
                 '檢查時間': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 '通過率': f"{passed}/{total}",
-                '狀態': '合格' if passed == total else '不合格',
+                '狀態': status,
                 **{key: ('✓' if is_passed(val) else '✗') 
                     for key, val in checks.items()}
             }
