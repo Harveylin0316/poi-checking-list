@@ -16,13 +16,8 @@ RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key
     && apt-get install -y google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
 
-# 安裝ChromeDriver（使用新版本API）
-RUN CHROMEDRIVER_VERSION=$(curl -sS https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE) \
-    && wget -O /tmp/chromedriver.zip https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/$CHROMEDRIVER_VERSION/linux64/chromedriver-linux64.zip \
-    && unzip /tmp/chromedriver.zip -d /tmp/ \
-    && mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/ \
-    && rm -rf /tmp/chromedriver* \
-    && chmod +x /usr/local/bin/chromedriver
+# 安裝ChromeDriver（使用webdriver-manager自動管理，更簡單可靠）
+# ChromeDriver會在運行時自動下載匹配的版本
 
 # 設置工作目錄
 WORKDIR /app
