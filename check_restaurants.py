@@ -1119,23 +1119,32 @@ class OpenRiceChecker:
             passed = sum(1 for result in checks.values() if is_passed(result))
             total = len(checks)
             
+            # 收集不合格項目
+            failed_items = []
+            for key, value in checks.items():
+                if not is_passed(value):
+                    failed_items.append(key)
+            
             # 判斷狀態：如果只有"相關影片"不符合，顯示特殊狀態
             videos_passed = is_passed(checks['相關影片'])
             other_checks_passed = all(is_passed(checks[key]) for key in ['中文名稱', '英文名稱', '門面照片', '菜單', '餐點照片'])
             
             if passed == total:
                 status = '合格'
+                status_with_items = '合格'
             elif not videos_passed and other_checks_passed:
                 status = '符合上限標準(非重點poi請商家提供影片, 若是重點poi請行銷-攝影安排影片拍攝)'
+                status_with_items = f'符合上限標準(非重點poi請商家提供影片, 若是重點poi請行銷-攝影安排影片拍攝) - 缺少：{", ".join(failed_items)}'
             else:
                 status = '不合格'
+                status_with_items = f'不合格 - 缺少：{", ".join(failed_items)}' if failed_items else '不合格'
             
             result = {
                 '餐廳名稱': restaurant_name,
                 'URL': url,
                 '檢查時間': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 '通過率': f"{passed}/{total}",
-                '狀態': status,
+                '狀態': status_with_items,  # 使用包含不合格項目的狀態
                 **{key: ('✓' if is_passed(val) else '✗') 
                     for key, val in checks.items()}
             }

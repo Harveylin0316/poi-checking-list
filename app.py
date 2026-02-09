@@ -317,7 +317,8 @@ if uploaded_file is not None:
         st.dataframe(df_results, use_container_width=True)
         
         # 不合格餐廳清單
-        failed_restaurants = df_results[df_results['狀態'] != '合格']
+        # 過濾不合格餐廳（排除"合格"狀態）
+        failed_restaurants = df_results[~df_results['狀態'].str.contains('^合格$', regex=True, na=False)]
         if len(failed_restaurants) > 0:
             st.subheader("❌ 不合格餐廳清單")
             # 只選擇存在的列，避免KeyError
@@ -326,6 +327,7 @@ if uploaded_file is not None:
                 display_cols.append('通過率')
             if '錯誤資訊' in failed_restaurants.columns:
                 display_cols.append('錯誤資訊')
+            # 顯示不合格餐廳清單，狀態列會包含不合格項目
             st.dataframe(failed_restaurants[display_cols], use_container_width=True)
         
         # 產生報告檔案
