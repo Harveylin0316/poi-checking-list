@@ -601,10 +601,28 @@ class OpenRiceChecker:
                 headers['Accept-Encoding'] = 'gzip, deflate'
                 no_br_response = requests.get(url, headers=headers, timeout=10)
                 no_br_response.raise_for_status()
-                return BeautifulSoup(no_br_response.content, 'html.parser')
+                soup = BeautifulSoup(no_br_response.content, 'html.parser')
+                
+                # 檢查頁面內容是否有效
+                page_text = soup.get_text() if soup else ""
+                if len(page_text) < 100:
+                    raise Exception(f"頁面內容過短 ({len(page_text)} 字元)，可能是JavaScript動態加載的頁面。Streamlit Cloud環境可能無法訪問OpenRice網站。")
+                
+                return soup
             
             # 正常情況（gzip或其他）
-            return BeautifulSoup(response.content, 'html.parser')
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # 檢查頁面內容是否有效
+            page_text = soup.get_text() if soup else ""
+            if len(page_text) < 100:
+                raise Exception(f"頁面內容過短 ({len(page_text)} 字元)，可能是JavaScript動態加載的頁面。Streamlit Cloud環境可能無法訪問OpenRice網站。")
+            
+            return soup
+        except requests.exceptions.Timeout:
+            raise Exception(f"請求超時（超過10秒），可能是網絡問題或Streamlit Cloud無法訪問OpenRice")
+        except requests.exceptions.ConnectionError:
+            raise Exception(f"連接錯誤，Streamlit Cloud可能無法訪問OpenRice網站")
         except Exception as e:
             raise Exception(f"無法獲取頁面: {e}")
     
@@ -622,12 +640,27 @@ class OpenRiceChecker:
             
             # 檢查是否成功獲取頁面
             if soup is None:
-                raise Exception("無法獲取頁面內容")
+                raise Exception("無法獲取頁面內容（soup為None）")
             
             # 檢查頁面是否有內容
             page_text = soup.get_text() if soup else ""
-            if len(page_text) < 100:
-                print(f"  警告: 頁面內容過短 ({len(page_text)} 字元)，可能是錯誤頁面")
+            page_text_length = len(page_text)
+            print(f"  頁面內容長度: {page_text_length} 字元")
+            
+            # 如果頁面內容過短，可能是錯誤頁面或JavaScript未執行
+            if page_text_length < 500:
+                error_msg = f"頁面內容過短 ({page_text_length} 字元)，可能是：1) 網絡限制無法訪問 2) JavaScript未執行 3) 錯誤頁面"
+                print(f"  錯誤: {error_msg}")
+                raise Exception(error_msg)
+            
+            # 檢查是否包含OpenRice的關鍵字
+            if 'openrice' not in page_text.lower() and 'openrice' not in actual_url.lower():
+                print(f"  警告: 頁面可能不是OpenRice頁面")
+            
+            # 檢查是否有body標籤
+            body = soup.find('body')
+            if not body:
+                raise Exception("頁面缺少body標籤，可能是錯誤頁面")
             
             # 使用實際URL構建子頁面URL
             checks = {
