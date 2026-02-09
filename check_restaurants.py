@@ -63,8 +63,7 @@ class OpenRiceChecker:
             
             try:
                 # 檢查是否在Railway/Docker環境中
-                import os
-                import sys
+                # os 和 sys 已在文件頂部導入
                 
                 # 確保輸出立即刷新（Railway環境需要）
                 sys.stdout.flush()
